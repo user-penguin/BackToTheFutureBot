@@ -28,6 +28,13 @@ func run() {
 	updates, err := bot.GetUpdatesChan(u)
 	log.Println("Bot is start up!")
 
+	var numericKeyboard = tgbot.NewReplyKeyboard(
+		tgbot.NewKeyboardButtonRow(
+			tgbot.NewKeyboardButton("start"),
+			tgbot.NewKeyboardButton("convert"),
+		),
+	)
+
 	for update := range updates {
 		// empty message
 		if update.Message == nil {
@@ -35,9 +42,14 @@ func run() {
 		}
 		text := update.Message.Text
 		chatId := update.Message.Chat.ID
+
 		switch command.Command(text) {
 		case command.Start:
-			_, _ = bot.Send(tgbot.NewMessage(chatId, message.StartMessage()))
+			msg := tgbot.NewMessage(chatId, message.StartMessage())
+			msg.ReplyMarkup = numericKeyboard
+			_, _ = bot.Send(msg)
+		case command.Convert:
+			_, _ = bot.Send(tgbot.NewMessage(chatId, message.ConvertMessage()))
 		}
 	}
 

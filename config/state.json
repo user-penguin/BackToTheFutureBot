@@ -1,0 +1,8 @@
+{
+  "base": "",
+  "convert": "select-currency-1",
+  "select-currency-1": "select-currency-2",
+  "select-currency-2": "enter-value-1",
+  "enter-value-1": "enter-value-2",
+  "enter-value-2": "base"
+}
