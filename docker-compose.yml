@@ -1,0 +1,18 @@
+version: '3.9'
+
+services:
+  bot:
+    build: .
+  db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: "postgrespass"
+      POSTGRES_USER: "tgbotadmin"
+      POSTGRES_DB: "tgbot"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ../2. Init Database:/docker-entrypoint-initdb.d
+      - .:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
