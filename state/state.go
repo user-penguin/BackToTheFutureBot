@@ -1,6 +1,10 @@
 package state
 
-type State struct {
-	Name string
-	Next string
-}
+type State string
+
+const (
+	Start              = "Start"
+	CountWait          = "CountWait"
+	FirstCurrencyWait  = "FirstCurrencyWait"
+	SecondCurrencyWait = "SecondCurrencyWait"
+)

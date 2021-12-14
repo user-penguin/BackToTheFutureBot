@@ -3,7 +3,7 @@ package currency
 type Currency string
 
 const (
-	Euro      Currency = "EUR"
-	DollarUSA          = "USD"
-	Ruble              = "RUR"
+	Euro      = "EUR"
+	DollarUSA = "USD"
+	Ruble     = "RUR"
 )
