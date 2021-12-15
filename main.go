@@ -23,8 +23,8 @@ var states map[int64]Currency
 
 // в дальнейшем допилить работу с глобальной мапой
 func getState(chatId int64) (Currency, bool) {
-	currency, ok := states[chatId]
-	return currency, ok
+	userState, ok := states[chatId]
+	return userState, ok
 }
 
 // в дальнейшем допилить работу с глобальной мапой
@@ -33,32 +33,32 @@ func setState(chatId int64, currency Currency) {
 }
 
 func getMsgByState(chatId int64, message string) (string, error) {
-	currency, ok := getState(chatId)
+	userCondition, ok := getState(chatId)
 	if !ok {
 		states[chatId] = Currency{State: "start"}
-		currency = states[chatId]
+		userCondition = states[chatId]
 	}
 
-	switch currency.State {
+	switch userCondition.State {
 	case state.Begin:
-		currency.State = state.FirstCurrencyWait
-		states[chatId] = currency
+		userCondition.State = state.FirstCurrencyWait
+		states[chatId] = userCondition
 		return "Привет. Из какой валюты будем конвертировать?", nil
 	case state.FirstCurrencyWait:
-		currency.State = state.CountWait
-		currency.CurrencyFrom = message
-		states[chatId] = currency
+		userCondition.State = state.CountWait
+		userCondition.CurrencyFrom = message
+		states[chatId] = userCondition
 		return "Сколько:", nil
 	case state.CountWait:
-		currency.State = state.SecondCurrencyWait
-		currency.Value, _ = strconv.Atoi(message)
-		states[chatId] = currency
+		userCondition.State = state.SecondCurrencyWait
+		userCondition.Value, _ = strconv.Atoi(message)
+		states[chatId] = userCondition
 		return "Куда?", nil
 	case state.SecondCurrencyWait:
-		currency.State = state.Begin
-		currency.CurrencyTo = message
-		states[chatId] = currency
-		return "вы получите кучу денег!" + strconv.Itoa(currency.Value*20), nil
+		userCondition.State = state.Begin
+		userCondition.CurrencyTo = message
+		states[chatId] = userCondition
+		return "вы получите кучу денег!" + strconv.Itoa(userCondition.Value*20), nil
 	default:
 		return "", errors.New("ввели какую-то херню")
 	}
@@ -85,8 +85,8 @@ func standardMenuHandle(chatId int64, text string, bot *tgbot.BotAPI) {
 func getCurrenciesKeyboard() tgbot.ReplyKeyboardMarkup {
 	var keyboard [][]tgbot.KeyboardButton
 	var row []tgbot.KeyboardButton
-	for i, currency := range currency.GetAllCurrencies() {
-		row = append(row, tgbot.NewKeyboardButton(currency))
+	for i, currencyName := range currency.GetAllCurrencies() {
+		row = append(row, tgbot.NewKeyboardButton(currencyName))
 		if (i+1)%3 == 0 {
 			keyboard = append(keyboard, row)
 			row = nil
@@ -132,13 +132,13 @@ func run() {
 		// имеем кого-то и текст от этого кого-то
 		// сначала нужно проверить состояние
 
-		currency, ok := getState(chatId)
+		userCondition, ok := getState(chatId)
 		if !ok {
 			states[chatId] = Currency{State: state.Begin}
-			currency = states[chatId]
+			userCondition = states[chatId]
 		}
 
-		if currency.State == state.Begin {
+		if userCondition.State == state.Begin {
 			standardMenuHandle(chatId, text, bot)
 			continue
 		}
@@ -157,11 +157,11 @@ func run() {
 		default:
 			textMessage, err := getMsgByState(chatId, text)
 			if err != nil {
-				log.Println("Они ввели какую-то херню:", text, chatId, " state: ", currency.State)
+				log.Println("Они ввели какую-то херню:", text, chatId, " state: ", userCondition.State)
 				continue
 			}
 			msg := tgbot.NewMessage(chatId, textMessage)
-			if currency.State == state.SecondCurrencyWait || currency.State == state.FirstCurrencyWait {
+			if userCondition.State == state.SecondCurrencyWait || userCondition.State == state.FirstCurrencyWait {
 				msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
 			} else {
 				msg.ReplyMarkup = numericKeyboard
