@@ -7,3 +7,11 @@ const (
 	DollarUSA = "USD"
 	Ruble     = "RUR"
 )
+
+func GetAllCurrencies() [3]string {
+	return [...]string{
+		Euro,
+		DollarUSA,
+		Ruble,
+	}
+}
