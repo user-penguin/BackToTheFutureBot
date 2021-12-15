@@ -40,7 +40,7 @@ func getMsgByState(chatId int64, message string) (string, error) {
 	}
 
 	switch currency.State {
-	case state.Start:
+	case state.Begin:
 		currency.State = state.FirstCurrencyWait
 		states[chatId] = currency
 		return "Привет. Из какой валюты будем конвертировать?", nil
@@ -55,7 +55,7 @@ func getMsgByState(chatId int64, message string) (string, error) {
 		states[chatId] = currency
 		return "Куда?", nil
 	case state.SecondCurrencyWait:
-		currency.State = state.Start
+		currency.State = state.Begin
 		currency.CurrencyTo = message
 		states[chatId] = currency
 		return "вы получите кучу денег!" + strconv.Itoa(currency.Value*20), nil
@@ -66,6 +66,33 @@ func getMsgByState(chatId int64, message string) (string, error) {
 
 func main() {
 	run()
+}
+
+func standardMenuHandle(chatId int64, text string, bot *tgbot.BotAPI) {
+	switch text {
+	case string(command.Start):
+		msg := tgbot.NewMessage(chatId, message.StartMessage())
+		msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
+		_, _ = bot.Send(msg)
+	case string(command.Convert):
+		setState(chatId, Currency{State: state.FirstCurrencyWait})
+		msg := tgbot.NewMessage(chatId, message.SelectFirstCurrency())
+		msg.ReplyMarkup = getCurrenciesKeyboard()
+		_, _ = bot.Send(msg)
+	}
+}
+
+func getCurrenciesKeyboard() tgbot.ReplyKeyboardMarkup {
+	var keyboard [][]tgbot.KeyboardButton
+	var row []tgbot.KeyboardButton
+	for i, currency := range currency.GetAllCurrencies() {
+		row = append(row, tgbot.NewKeyboardButton(currency))
+		if (i+1)%3 == 0 {
+			keyboard = append(keyboard, row)
+			row = nil
+		}
+	}
+	return tgbot.NewReplyKeyboard(keyboard...)
 }
 
 func run() {
@@ -101,15 +128,24 @@ func run() {
 		}
 		text := update.Message.Text
 		chatId := update.Message.Chat.ID
+
+		// имеем кого-то и текст от этого кого-то
+		// сначала нужно проверить состояние
+
 		currency, ok := getState(chatId)
 		if !ok {
-			states[chatId] = Currency{State: state.Start}
+			states[chatId] = Currency{State: state.Begin}
 			currency = states[chatId]
+		}
+
+		if currency.State == state.Begin {
+			standardMenuHandle(chatId, text, bot)
+			continue
 		}
 
 		switch text {
 		case string(command.Start):
-			setState(chatId, Currency{State: state.Start})
+			setState(chatId, Currency{State: state.Begin})
 			msg := tgbot.NewMessage(chatId, message.StartMessage())
 			msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
 			_, _ = bot.Send(msg)
