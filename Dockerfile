@@ -10,6 +10,7 @@ COPY config ./config
 COPY message ./message
 COPY reader ./reader
 COPY state ./state
+COPY currency ./currency
 COPY main.go ./
 
 RUN go build -o /docker-gs-ping
