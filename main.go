@@ -7,6 +7,8 @@ import (
 	"BackToTheFutureBot/reader"
 	"BackToTheFutureBot/state"
 	"errors"
+	"fmt"
+	exchange "github.com/3crabs/go-yahoo-finance-api"
 	tgbot "github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 	"strconv"
@@ -15,8 +17,20 @@ import (
 type Currency struct {
 	CurrencyFrom string
 	CurrencyTo   string
-	Value        int
+	Value        float64
 	State        string
+}
+
+type Yahoo struct {
+	Token string
+}
+
+func (y *Yahoo) getRatio(s string, s2 string) (float64, error) {
+	quote, err := exchange.GetCurrency(s, s2, y.Token)
+	if err != nil {
+		return 0, err
+	}
+	return quote.QuoteResponse.Result[0].Ask, nil
 }
 
 var states map[int64]Currency
@@ -32,7 +46,7 @@ func setState(chatId int64, currency Currency) {
 	states[chatId] = currency
 }
 
-func getMsgByState(chatId int64, message string) (string, error) {
+func getMsgByState(chatId int64, message string, yahoo *Yahoo) (string, error) {
 	userCondition, ok := getState(chatId)
 	if !ok {
 		states[chatId] = Currency{State: "start"}
@@ -51,17 +65,23 @@ func getMsgByState(chatId int64, message string) (string, error) {
 		return "Сколько:", nil
 	case state.CountWait:
 		userCondition.State = state.SecondCurrencyWait
-		userCondition.Value, _ = strconv.Atoi(message)
+		userCondition.Value, _ = strconv.ParseFloat(message, 64)
 		states[chatId] = userCondition
 		return "Куда?", nil
 	case state.SecondCurrencyWait:
 		userCondition.State = state.Begin
 		userCondition.CurrencyTo = message
 		states[chatId] = userCondition
-		return "вы получите кучу денег!" + strconv.Itoa(userCondition.Value*20), nil
+		summary := calculateSummary(userCondition.Value, userCondition.CurrencyFrom, userCondition.CurrencyTo, yahoo)
+		return fmt.Sprintf("Вы получите: %f %s", summary, userCondition.CurrencyTo), nil
 	default:
 		return "", errors.New("ввели какую-то херню")
 	}
+}
+
+func calculateSummary(count float64, from string, to string, yahoo *Yahoo) float64 {
+	ratio, _ := yahoo.getRatio(from, to)
+	return ratio * count
 }
 
 func main() {
@@ -96,15 +116,17 @@ func getCurrenciesKeyboard() tgbot.ReplyKeyboardMarkup {
 }
 
 func run() {
-	token, err := reader.GetTokenFromFile()
+	config, err := reader.GetConfig()
 	if err != nil {
 		panic(err)
 	}
-	bot, err := tgbot.NewBotAPI(token)
+	bot, err := tgbot.NewBotAPI(config.BotToken)
 	if err != nil {
 		log.Println(err)
 		return
 	}
+	yahoo := &Yahoo{Token: config.YahooToken}
+
 	u := tgbot.NewUpdate(0)
 	u.Timeout = 60
 
@@ -155,7 +177,7 @@ func run() {
 			msg.ReplyMarkup = numericKeyboard
 			_, _ = bot.Send(msg)
 		default:
-			textMessage, err := getMsgByState(chatId, text)
+			textMessage, err := getMsgByState(chatId, text, yahoo)
 			if err != nil {
 				log.Println("Они ввели какую-то херню:", text, chatId, " state: ", userCondition.State)
 				continue
