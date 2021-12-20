@@ -5,7 +5,7 @@ type Currency string
 const (
 	Euro      = "EUR"
 	DollarUSA = "USD"
-	Ruble     = "RUR"
+	Ruble     = "RUB"
 )
 
 func GetAllCurrencies() [3]string {
