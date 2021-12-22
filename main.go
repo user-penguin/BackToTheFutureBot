@@ -2,7 +2,6 @@ package main
 
 import (
 	"BackToTheFutureBot/command"
-	"BackToTheFutureBot/currency"
 	"BackToTheFutureBot/message"
 	"BackToTheFutureBot/reader"
 	"BackToTheFutureBot/state"
@@ -15,6 +14,7 @@ import (
 )
 
 type Currency struct {
+	Scene        string
 	CurrencyFrom string
 	CurrencyTo   string
 	Value        float64
@@ -26,7 +26,8 @@ type Yahoo struct {
 }
 
 func (y *Yahoo) getRatio(s string, s2 string) (float64, error) {
-	quote, err := exchange.GetCurrency(s, s2, y.Token)
+	pair := exchange.Pair{From: s, To: s2}
+	quote, err := exchange.GetCurrency(pair, y.Token)
 	if err != nil {
 		return 0, err
 	}
@@ -46,10 +47,19 @@ func setState(chatId int64, currency Currency) {
 	states[chatId] = currency
 }
 
+func calculateSummary(count float64, from string, to string, yahoo *Yahoo) float64 {
+	ratio, _ := yahoo.getRatio(from, to)
+	return ratio * count
+}
+
+func main() {
+	run()
+}
+
 func getMsgByState(chatId int64, message string, yahoo *Yahoo) (string, error) {
 	userCondition, ok := getState(chatId)
 	if !ok {
-		states[chatId] = Currency{State: "start"}
+		states[chatId] = Currency{State: state.Begin, Scene: "/start"}
 		userCondition = states[chatId]
 	}
 
@@ -79,16 +89,11 @@ func getMsgByState(chatId int64, message string, yahoo *Yahoo) (string, error) {
 	}
 }
 
-func calculateSummary(count float64, from string, to string, yahoo *Yahoo) float64 {
-	ratio, _ := yahoo.getRatio(from, to)
-	return ratio * count
-}
+//todo переделать стейтмашину с учётом базового экшна,
+// запилить как отдельный хендлер
 
-func main() {
-	run()
-}
-
-func standardMenuHandle(chatId int64, text string, bot *tgbot.BotAPI) {
+// обработчик стартового состояния
+func baseStateHandle(chatId int64, text string, bot *tgbot.BotAPI) {
 	switch text {
 	case string(command.Start):
 		msg := tgbot.NewMessage(chatId, message.StartMessage())
@@ -97,22 +102,9 @@ func standardMenuHandle(chatId int64, text string, bot *tgbot.BotAPI) {
 	case string(command.Convert):
 		setState(chatId, Currency{State: state.FirstCurrencyWait})
 		msg := tgbot.NewMessage(chatId, message.SelectFirstCurrency())
-		msg.ReplyMarkup = getCurrenciesKeyboard()
+		msg.ReplyMarkup = message.GetCurrenciesKeyboard()
 		_, _ = bot.Send(msg)
 	}
-}
-
-func getCurrenciesKeyboard() tgbot.ReplyKeyboardMarkup {
-	var keyboard [][]tgbot.KeyboardButton
-	var row []tgbot.KeyboardButton
-	for i, currencyName := range currency.GetAllCurrencies() {
-		row = append(row, tgbot.NewKeyboardButton(currencyName))
-		if (i+1)%3 == 0 {
-			keyboard = append(keyboard, row)
-			row = nil
-		}
-	}
-	return tgbot.NewReplyKeyboard(keyboard...)
 }
 
 func run() {
@@ -135,24 +127,14 @@ func run() {
 
 	log.Println("Bot is start up!")
 
-	var numericKeyboard = tgbot.NewReplyKeyboard(
-		tgbot.NewKeyboardButtonRow(
-			tgbot.NewKeyboardButton(currency.Euro),
-			tgbot.NewKeyboardButton(currency.DollarUSA),
-			tgbot.NewKeyboardButton(currency.Ruble),
-		),
-	)
-
 	for update := range updates {
 		// empty message
 		if update.Message == nil {
 			continue
 		}
+
 		text := update.Message.Text
 		chatId := update.Message.Chat.ID
-
-		// имеем кого-то и текст от этого кого-то
-		// сначала нужно проверить состояние
 
 		userCondition, ok := getState(chatId)
 		if !ok {
@@ -161,7 +143,7 @@ func run() {
 		}
 
 		if userCondition.State == state.Begin {
-			standardMenuHandle(chatId, text, bot)
+			baseStateHandle(chatId, text, bot)
 			continue
 		}
 
@@ -174,7 +156,7 @@ func run() {
 		case string(command.Convert):
 			setState(chatId, Currency{State: state.FirstCurrencyWait})
 			msg := tgbot.NewMessage(chatId, message.SelectFirstCurrency())
-			msg.ReplyMarkup = numericKeyboard
+			msg.ReplyMarkup = message.GetCurrenciesKeyboard()
 			_, _ = bot.Send(msg)
 		default:
 			textMessage, err := getMsgByState(chatId, text, yahoo)
@@ -186,7 +168,7 @@ func run() {
 			if userCondition.State == state.SecondCurrencyWait || userCondition.State == state.FirstCurrencyWait {
 				msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
 			} else {
-				msg.ReplyMarkup = numericKeyboard
+				msg.ReplyMarkup = message.GetCurrenciesKeyboard()
 			}
 			_, _ = bot.Send(msg)
 		}
