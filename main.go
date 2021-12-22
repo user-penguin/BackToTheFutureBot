@@ -4,22 +4,27 @@ import (
 	"BackToTheFutureBot/command"
 	"BackToTheFutureBot/message"
 	"BackToTheFutureBot/reader"
+	"BackToTheFutureBot/scene"
 	"BackToTheFutureBot/state"
-	"errors"
-	"fmt"
 	exchange "github.com/3crabs/go-yahoo-finance-api"
 	tgbot "github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 	"strconv"
 )
 
-type Currency struct {
+type UserCondition struct {
 	Scene        string
-	CurrencyFrom string
-	CurrencyTo   string
-	Value        float64
 	State        string
+	CurrencyFrom string
+	Value        float64
+	CurrencyTo   string
 }
+
+// мапа валютных пар
+var currencies map[string]interface{}
+
+// мапа состояний пользователей
+var states map[int64]UserCondition
 
 type Yahoo struct {
 	Token string
@@ -34,16 +39,14 @@ func (y *Yahoo) getRatio(s string, s2 string) (float64, error) {
 	return quote.QuoteResponse.Result[0].Ask, nil
 }
 
-var states map[int64]Currency
-
 // в дальнейшем допилить работу с глобальной мапой
-func getState(chatId int64) (Currency, bool) {
+func getState(chatId int64) (UserCondition, bool) {
 	userState, ok := states[chatId]
 	return userState, ok
 }
 
 // в дальнейшем допилить работу с глобальной мапой
-func setState(chatId int64, currency Currency) {
+func setState(chatId int64, currency UserCondition) {
 	states[chatId] = currency
 }
 
@@ -56,54 +59,89 @@ func main() {
 	run()
 }
 
-func getMsgByState(chatId int64, message string, yahoo *Yahoo) (string, error) {
-	userCondition, ok := getState(chatId)
-	if !ok {
-		states[chatId] = Currency{State: state.Begin, Scene: "/start"}
-		userCondition = states[chatId]
-	}
-
-	switch userCondition.State {
-	case state.Begin:
-		userCondition.State = state.FirstCurrencyWait
-		states[chatId] = userCondition
-		return "Привет. Из какой валюты будем конвертировать?", nil
-	case state.FirstCurrencyWait:
-		userCondition.State = state.CountWait
-		userCondition.CurrencyFrom = message
-		states[chatId] = userCondition
-		return "Сколько:", nil
-	case state.CountWait:
-		userCondition.State = state.SecondCurrencyWait
-		userCondition.Value, _ = strconv.ParseFloat(message, 64)
-		states[chatId] = userCondition
-		return "Куда?", nil
-	case state.SecondCurrencyWait:
-		userCondition.State = state.Begin
-		userCondition.CurrencyTo = message
-		states[chatId] = userCondition
-		summary := calculateSummary(userCondition.Value, userCondition.CurrencyFrom, userCondition.CurrencyTo, yahoo)
-		return fmt.Sprintf("Вы получите: %f %s", summary, userCondition.CurrencyTo), nil
+func baseSceneHandle(chatId int64, text string, bot *tgbot.BotAPI) {
+	switch text {
+	case string(command.Start):
+		setState(chatId, UserCondition{State: state.Begin, Scene: scene.MainMenu})
+		msg := tgbot.NewMessage(chatId, message.OnStartButtonMessage())
+		msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
+		_, _ = bot.Send(msg)
 	default:
-		return "", errors.New("ввели какую-то херню")
+		msg := tgbot.NewMessage(chatId, message.DefaultStartButtonMessage())
+		msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
+		_, _ = bot.Send(msg)
 	}
 }
 
-//todo переделать стейтмашину с учётом базового экшна,
-// запилить как отдельный хендлер
-
-// обработчик стартового состояния
-func baseStateHandle(chatId int64, text string, bot *tgbot.BotAPI) {
+func mainMenuSceneHandle(chatId int64, text string, bot *tgbot.BotAPI) {
 	switch text {
-	case string(command.Start):
-		msg := tgbot.NewMessage(chatId, message.StartMessage())
-		msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
-		_, _ = bot.Send(msg)
 	case string(command.Convert):
-		setState(chatId, Currency{State: state.FirstCurrencyWait})
-		msg := tgbot.NewMessage(chatId, message.SelectFirstCurrency())
+		setState(chatId, UserCondition{State: state.FirstCurrencyWait, Scene: scene.ConvertMenu})
+		msg := tgbot.NewMessage(chatId, message.OnConvertButtonMessage())
 		msg.ReplyMarkup = message.GetCurrenciesKeyboard()
 		_, _ = bot.Send(msg)
+	case string(command.Start):
+		msg := tgbot.NewMessage(chatId, message.OnStartButtonMessage())
+		msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
+		_, _ = bot.Send(msg)
+	default:
+		msg := tgbot.NewMessage(chatId, message.WrongCommandMessage())
+		msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
+		_, _ = bot.Send(msg)
+	}
+}
+
+func convertSceneHandle(chatId int64, text string, bot *tgbot.BotAPI, yahoo *Yahoo) {
+	userCondition, ok := getState(chatId)
+	if !ok {
+		states[chatId] = UserCondition{State: state.Begin, Scene: "/start"}
+		userCondition = states[chatId]
+	}
+	switch userCondition.State {
+	// text здесь - это наименование валюты
+	case state.FirstCurrencyWait:
+		_, ok := currencies[text]
+		if !ok {
+			msg := tgbot.NewMessage(chatId, message.WrongCurrencyMessage())
+			_, _ = bot.Send(msg)
+		} else {
+			userCondition.State = state.CountWait
+			userCondition.CurrencyFrom = text
+			states[chatId] = userCondition
+			msg := tgbot.NewMessage(chatId, message.TypeCountOfCurrencyMessage())
+			msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
+			_, _ = bot.Send(msg)
+		}
+	case state.CountWait:
+		countMoney, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			log.Println(err)
+			msg := tgbot.NewMessage(chatId, message.WrongCountOfCurrencyMessage())
+			msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
+			_, _ = bot.Send(msg)
+		} else {
+			userCondition.State = state.SecondCurrencyWait
+			userCondition.Value = countMoney
+			states[chatId] = userCondition
+			msg := tgbot.NewMessage(chatId, message.SelectSecondCurrencyMessage())
+			msg.ReplyMarkup = message.GetCurrenciesKeyboard()
+			_, _ = bot.Send(msg)
+		}
+	case state.SecondCurrencyWait:
+		_, ok := currencies[text]
+		if !ok {
+			msg := tgbot.NewMessage(chatId, message.WrongCurrencyMessage())
+			_, _ = bot.Send(msg)
+		} else {
+			userCondition.State = state.Begin
+			userCondition.Scene = scene.MainMenu
+			userCondition.CurrencyTo = text
+			states[chatId] = userCondition
+			resultValue := calculateSummary(userCondition.Value, userCondition.CurrencyFrom, userCondition.CurrencyTo, yahoo)
+			msg := tgbot.NewMessage(chatId, message.ResultConvertMessage(userCondition.CurrencyFrom, userCondition.CurrencyTo, userCondition.Value, resultValue))
+			msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
+			_, _ = bot.Send(msg)
+		}
 	}
 }
 
@@ -123,7 +161,12 @@ func run() {
 	u.Timeout = 60
 
 	updates, err := bot.GetUpdatesChan(u)
-	states = make(map[int64]Currency)
+	states = make(map[int64]UserCondition)
+
+	currencies = make(map[string]interface{}, 3)
+	currencies[exchange.Euro] = true
+	currencies[exchange.DollarUSA] = true
+	currencies[exchange.Ruble] = true
 
 	log.Println("Bot is start up!")
 
@@ -138,39 +181,17 @@ func run() {
 
 		userCondition, ok := getState(chatId)
 		if !ok {
-			states[chatId] = Currency{State: state.Begin}
+			states[chatId] = UserCondition{State: state.Begin, Scene: scene.Base}
 			userCondition = states[chatId]
 		}
 
-		if userCondition.State == state.Begin {
-			baseStateHandle(chatId, text, bot)
-			continue
-		}
-
-		switch text {
-		case string(command.Start):
-			setState(chatId, Currency{State: state.Begin})
-			msg := tgbot.NewMessage(chatId, message.StartMessage())
-			msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
-			_, _ = bot.Send(msg)
-		case string(command.Convert):
-			setState(chatId, Currency{State: state.FirstCurrencyWait})
-			msg := tgbot.NewMessage(chatId, message.SelectFirstCurrency())
-			msg.ReplyMarkup = message.GetCurrenciesKeyboard()
-			_, _ = bot.Send(msg)
-		default:
-			textMessage, err := getMsgByState(chatId, text, yahoo)
-			if err != nil {
-				log.Println("Они ввели какую-то херню:", text, chatId, " state: ", userCondition.State)
-				continue
-			}
-			msg := tgbot.NewMessage(chatId, textMessage)
-			if userCondition.State == state.SecondCurrencyWait || userCondition.State == state.FirstCurrencyWait {
-				msg.ReplyMarkup = tgbot.NewRemoveKeyboard(true)
-			} else {
-				msg.ReplyMarkup = message.GetCurrenciesKeyboard()
-			}
-			_, _ = bot.Send(msg)
+		switch userCondition.Scene {
+		case scene.Base:
+			baseSceneHandle(chatId, text, bot)
+		case scene.MainMenu:
+			mainMenuSceneHandle(chatId, text, bot)
+		case scene.ConvertMenu:
+			convertSceneHandle(chatId, text, bot, yahoo)
 		}
 	}
 
