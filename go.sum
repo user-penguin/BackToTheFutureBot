@@ -1,5 +1,5 @@
-github.com/3crabs/go-yahoo-finance-api v0.1.1 h1:aDz4leQUliW3P8yXFDu/WX2eqeAOFrLy13PifBbIEQE=
-github.com/3crabs/go-yahoo-finance-api v0.1.1/go.mod h1:7ZWHBRtWwgTGzljYA+5debQju8MgMo6Zm2P12RLkI2U=
+github.com/3crabs/go-yahoo-finance-api v0.1.2 h1:OLCWiueM+TGTJNlymgy3ja4UQP+DQZ66ax4iVtieKZk=
+github.com/3crabs/go-yahoo-finance-api v0.1.2/go.mod h1:7ZWHBRtWwgTGzljYA+5debQju8MgMo6Zm2P12RLkI2U=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
