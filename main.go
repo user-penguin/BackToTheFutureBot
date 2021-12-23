@@ -2,6 +2,7 @@ package main
 
 import (
 	"BackToTheFutureBot/command"
+	"BackToTheFutureBot/currency"
 	"BackToTheFutureBot/message"
 	"BackToTheFutureBot/reader"
 	"BackToTheFutureBot/scene"
@@ -19,9 +20,6 @@ type UserCondition struct {
 	Value        float64
 	CurrencyTo   string
 }
-
-// мапа валютных пар
-var currencies map[string]interface{}
 
 // мапа состояний пользователей
 var states map[int64]UserCondition
@@ -100,7 +98,7 @@ func convertSceneHandle(chatId int64, text string, bot *tgbot.BotAPI, yahoo *Yah
 	switch userCondition.State {
 	// text здесь - это наименование валюты
 	case state.FirstCurrencyWait:
-		_, ok := currencies[text]
+		_, ok := currency.GetCurrencyMap()[text]
 		if !ok {
 			msg := tgbot.NewMessage(chatId, message.WrongCurrencyMessage())
 			_, _ = bot.Send(msg)
@@ -128,7 +126,7 @@ func convertSceneHandle(chatId int64, text string, bot *tgbot.BotAPI, yahoo *Yah
 			_, _ = bot.Send(msg)
 		}
 	case state.SecondCurrencyWait:
-		_, ok := currencies[text]
+		_, ok := currency.GetCurrencyMap()[text]
 		if !ok {
 			msg := tgbot.NewMessage(chatId, message.WrongCurrencyMessage())
 			_, _ = bot.Send(msg)
@@ -162,11 +160,6 @@ func run() {
 
 	updates, err := bot.GetUpdatesChan(u)
 	states = make(map[int64]UserCondition)
-
-	currencies = make(map[string]interface{}, 3)
-	currencies[exchange.Euro] = true
-	currencies[exchange.DollarUSA] = true
-	currencies[exchange.Ruble] = true
 
 	log.Println("Bot is start up!")
 
