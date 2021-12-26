@@ -9,8 +9,10 @@ import (
 	"BackToTheFutureBot/state"
 	exchange "github.com/3crabs/go-yahoo-finance-api"
 	tgbot "github.com/go-telegram-bot-api/telegram-bot-api"
+	cache "github.com/patrickmn/go-cache"
 	"log"
 	"strconv"
+	"time"
 )
 
 type UserCondition struct {
@@ -36,6 +38,17 @@ func (y *Yahoo) getRatio(s string, s2 string) (float64, error) {
 	}
 	return quote.QuoteResponse.Result[0].Ask, nil
 }
+
+//
+//func (y *Yahoo) getRatios() (map[string]float64, error) {
+//	allCur := currency.GetAllCurrencies()
+//	quote, err := exchange.GetCurrencies(currency.GetAllPair()[:], y.Token)
+//	if err != nil {
+//		log.Println(err)
+//		return nil, err
+//	}
+//	return
+//}
 
 // в дальнейшем допилить работу с глобальной мапой
 func getState(chatId int64) (UserCondition, bool) {
@@ -154,6 +167,10 @@ func run() {
 		return
 	}
 	yahoo := &Yahoo{Token: config.YahooToken}
+
+	c := cache.New(50*time.Minute, 60*time.Minute)
+
+	c.Set("foo", "bar", cache.DefaultExpiration)
 
 	u := tgbot.NewUpdate(0)
 	u.Timeout = 60

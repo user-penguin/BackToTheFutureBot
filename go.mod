@@ -6,6 +6,7 @@ require (
 	github.com/3crabs/go-yahoo-finance-api v0.1.2
 	github.com/go-playground/validator/v10 v10.9.0
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 )
 
 require (

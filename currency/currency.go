@@ -1,5 +1,7 @@
 package currency
 
+import exchange "github.com/3crabs/go-yahoo-finance-api"
+
 type Currency string
 
 const (
@@ -22,4 +24,16 @@ func GetAllCurrencies() [3]string {
 		DollarUSA,
 		Ruble,
 	}
+}
+
+func GetAllPair() []exchange.Pair {
+	pairs := [...]exchange.Pair{
+		{Ruble, Euro},
+		{Euro, Ruble},
+		{Ruble, DollarUSA},
+		{DollarUSA, Ruble},
+		{DollarUSA, Euro},
+		{Euro, Ruble},
+	}
+	return pairs[:]
 }
